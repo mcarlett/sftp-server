@@ -1,8 +1,6 @@
 package org.jboss.fuse.qe.sftp.service;
 
 import org.apache.sshd.common.file.nativefs.NativeFileSystemFactory;
-import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
-import org.apache.sshd.common.util.io.IoUtils;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
 import org.apache.sshd.sftp.server.SftpSubsystemFactory;
@@ -27,20 +25,18 @@ public class SftpService {
 
 		final Path home = Paths.get(homeDirectory);
 		LOG.info("Server home directory: " + home.toAbsolutePath());
-		if (!home.toFile().exists()) {
-			LOG.debug("home directory does not exists, creating");
-			Files.createDirectories(home);
-		}
-		IoUtils.ensureDirectory(home);
 		final SshServer sshd = SshServer.setUpDefaultServer();
 		sshd.setHost(host);
 		sshd.setPort(port);
-		sshd.setFileSystemFactory(new VirtualFileSystemFactory(home));
 		final Path keyFile = Files.createTempFile("", ".key");
 		keyFile.toFile().deleteOnExit();
 		sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider(keyFile.toAbsolutePath()));
-		sshd.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
+		sshd.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory.Builder()
+				.build()));
 		sshd.setPasswordAuthenticator((u, p, session) -> u.equals(username) && p.equals(password));
+		final NativeFileSystemFactory fileSystemFactory = new NativeFileSystemFactory(true);
+		fileSystemFactory.setUsersHomeDir(homeDirectory);
+		sshd.setFileSystemFactory(fileSystemFactory);
 		sshd.start();
 
 		LOG.info("Server listening on " + getListeningAddresses(sshd));
